@@ -1,5 +1,5 @@
 <template>
-  <div class="el-collapse">
+  <div class="el-collapse" role="tablist" aria-multiselectable="true">
     <slot></slot>
   </div>
 </template>
@@ -12,7 +12,7 @@
     props: {
       accordion: Boolean,
       value: {
-        type: [Array, String],
+        type: [Array, String, Number],
         default() {
           return [];
         }
@@ -22,6 +22,12 @@
     data() {
       return {
         activeNames: [].concat(this.value)
+      };
+    },
+
+    provide() {
+      return {
+        collapse: this
       };
     },
 
@@ -42,7 +48,7 @@
       handleItemClick(item) {
         if (this.accordion) {
           this.setActiveNames(
-            this.activeNames[0] &&
+            (this.activeNames[0] || this.activeNames[0] === 0) &&
             this.activeNames[0] === item.name
             ? '' : item.name
           );

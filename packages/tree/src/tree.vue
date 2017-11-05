@@ -5,7 +5,8 @@
       :node="child"
       :props="props"
       :key="getNodeKey(child)"
-      :render-content="renderContent">
+      :render-content="renderContent"
+      @node-expand="handleNodeExpand">
     </el-tree-node>
     <div class="el-tree__empty-block" v-if="!root.childNodes || root.childNodes.length === 0">
       <span class="el-tree__empty-text">{{ emptyText }}</span>
@@ -13,12 +14,28 @@
   </div>
 </template>
 
-<script type="text/ecmascript-6">
+<script>
   import TreeStore from './model/tree-store';
+  import ElTreeNode from './tree-node.vue';
   import {t} from 'element-ui/src/locale';
+  import emitter from 'element-ui/src/mixins/emitter';
 
   export default {
     name: 'ElTree',
+
+    mixins: [emitter],
+
+    components: {
+      ElTreeNode
+    },
+
+    data() {
+      return {
+        store: null,
+        root: null,
+        currentNode: null
+      };
+    },
 
     props: {
       data: {
@@ -37,6 +54,10 @@
         type: Boolean,
         default: true
       },
+      checkDescendants: {
+        type: Boolean,
+        default: false
+      },
       autoExpandParent: {
         type: Boolean,
         default: true
@@ -53,7 +74,8 @@
           return {
             children: 'children',
             label: 'label',
-            icon: 'icon'
+            icon: 'icon',
+            disabled: 'disabled'
           };
         }
       },
@@ -62,42 +84,13 @@
         default: false
       },
       highlightCurrent: Boolean,
-      currentNodeKey: [String, Number],
       load: Function,
-      filterNodeMethod: Function
-    },
-
-    created() {
-      this.isTree = true;
-
-      this.store = new TreeStore({
-        key: this.nodeKey,
-        data: this.data,
-        lazy: this.lazy,
-        props: this.props,
-        load: this.load,
-        currentNodeKey: this.currentNodeKey,
-        checkStrictly: this.checkStrictly,
-        defaultCheckedKeys: this.defaultCheckedKeys,
-        defaultExpandedKeys: this.defaultExpandedKeys,
-        autoExpandParent: this.autoExpandParent,
-        defaultExpandAll: this.defaultExpandAll,
-        filterNodeMethod: this.filterNodeMethod
-      });
-
-      this.root = this.store.root;
-    },
-
-    data() {
-      return {
-        store: null,
-        root: null,
-        currentNode: null
-      };
-    },
-
-    components: {
-      ElTreeNode: require('./tree-node.vue')
+      filterNodeMethod: Function,
+      accordion: Boolean,
+      indent: {
+        type: Number,
+        default: 18
+      }
     },
 
     computed: {
@@ -119,9 +112,6 @@
       defaultExpandedKeys(newVal) {
         this.store.defaultExpandedKeys = newVal;
         this.store.setDefaultExpandedKeys(newVal);
-      },
-      currentNodeKey(newVal) {
-        this.store.setCurrentNodeKey(newVal);
       },
       data(newVal) {
         this.store.setData(newVal);
@@ -146,17 +136,64 @@
       getCheckedKeys(leafOnly) {
         return this.store.getCheckedKeys(leafOnly);
       },
+      getCurrentNode() {
+        const currentNode = this.store.getCurrentNode();
+        return currentNode ? currentNode.data : null;
+      },
+      getCurrentKey() {
+        if (!this.nodeKey) throw new Error('[Tree] nodeKey is required in getCurrentKey');
+        const currentNode = this.getCurrentNode();
+        return currentNode ? currentNode[this.nodeKey] : null;
+      },
       setCheckedNodes(nodes, leafOnly) {
         if (!this.nodeKey) throw new Error('[Tree] nodeKey is required in setCheckedNodes');
         this.store.setCheckedNodes(nodes, leafOnly);
       },
       setCheckedKeys(keys, leafOnly) {
-        if (!this.nodeKey) throw new Error('[Tree] nodeKey is required in setCheckedNodes');
+        if (!this.nodeKey) throw new Error('[Tree] nodeKey is required in setCheckedKeys');
         this.store.setCheckedKeys(keys, leafOnly);
       },
       setChecked(data, checked, deep) {
         this.store.setChecked(data, checked, deep);
+      },
+      setCurrentNode(node) {
+        if (!this.nodeKey) throw new Error('[Tree] nodeKey is required in setCurrentNode');
+        this.store.setUserCurrentNode(node);
+      },
+      setCurrentKey(key) {
+        if (!this.nodeKey) throw new Error('[Tree] nodeKey is required in setCurrentKey');
+        this.store.setCurrentNodeKey(key);
+      },
+      handleNodeExpand(nodeData, node, instance) {
+        this.broadcast('ElTreeNode', 'tree-node-expand', node);
+        this.$emit('node-expand', nodeData, node, instance);
+      },
+      updateKeyChildren(key, data) {
+        if (!this.nodeKey) throw new Error('[Tree] nodeKey is required in updateKeyChild');
+        this.store.updateChildren(key, data);
       }
+    },
+
+    created() {
+      this.isTree = true;
+
+      this.store = new TreeStore({
+        key: this.nodeKey,
+        data: this.data,
+        lazy: this.lazy,
+        props: this.props,
+        load: this.load,
+        currentNodeKey: this.currentNodeKey,
+        checkStrictly: this.checkStrictly,
+        checkDescendants: this.checkDescendants,
+        defaultCheckedKeys: this.defaultCheckedKeys,
+        defaultExpandedKeys: this.defaultExpandedKeys,
+        autoExpandParent: this.autoExpandParent,
+        defaultExpandAll: this.defaultExpandAll,
+        filterNodeMethod: this.filterNodeMethod
+      });
+
+      this.root = this.store.root;
     }
   };
 </script>

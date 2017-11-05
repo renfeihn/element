@@ -3,14 +3,14 @@
     @click.stop="handleClick"
     v-show="node.visible"
     :class="{
-      'is-expanded': childNodeRendered && expanded,
+      'is-expanded': expanded,
       'is-current': tree.store.currentNode === node,
       'is-hidden': !node.visible
     }">
     <div class="el-tree-node__content"
-      :style="{ 'padding-left': (node.level - 1) * 16 + 'px' }">
+      :style="{ 'padding-left': (node.level - 1) * tree.indent + 'px' }">
       <span
-        class="el-tree-node__expand-icon"
+        class="el-tree-node__expand-icon el-icon-caret-right"
         @click.stop="handleExpandIconClick"
         :class="{ 'is-leaf': node.isLeaf, expanded: !node.isLeaf && expanded }">
       </span>
@@ -18,8 +18,9 @@
         v-if="showCheckbox"
         v-model="node.checked"
         :indeterminate="node.indeterminate"
-        @change="handleCheckChange"
-        @click.native.stop="handleUserClick">
+        :disabled="!!node.disabled"
+        @click.native.stop
+        @change="handleCheckChange">
       </el-checkbox>
       <span
         v-if="node.loading"
@@ -27,27 +28,34 @@
       </span>
       <node-content :node="node"></node-content>
     </div>
-    <collapse-transition>
+    <el-collapse-transition>
       <div
         class="el-tree-node__children"
+        v-if="childNodeRendered"
         v-show="expanded">
         <el-tree-node
           :render-content="renderContent"
           v-for="child in node.childNodes"
           :key="getNodeKey(child)"
-          :node="child">
+          :node="child"
+          @node-expand="handleChildNodeExpand">
         </el-tree-node>
       </div>
-    </collapse-transition>
+    </el-collapse-transition>
   </div>
 </template>
 
 <script type="text/jsx">
-  import CollapseTransition from 'element-ui/src/transitions/collapse-transition';
+  import ElCollapseTransition from 'element-ui/src/transitions/collapse-transition';
   import ElCheckbox from 'element-ui/packages/checkbox';
+  import emitter from 'element-ui/src/mixins/emitter';
 
   export default {
     name: 'ElTreeNode',
+
+    componentName: 'ElTreeNode',
+
+    mixins: [emitter],
 
     props: {
       node: {
@@ -60,8 +68,8 @@
     },
 
     components: {
+      ElCollapseTransition,
       ElCheckbox,
-      CollapseTransition,
       NodeContent: {
         props: {
           node: {
@@ -103,7 +111,7 @@
       },
 
       'node.expanded'(val) {
-        this.expanded = val;
+        this.$nextTick(() => this.expanded = val);
         if (val) {
           this.childNodeRendered = true;
         }
@@ -139,23 +147,23 @@
       },
 
       handleExpandIconClick() {
+        if (this.node.isLeaf) return;
         if (this.expanded) {
+          this.tree.$emit('node-collapse', this.node.data, this.node, this);
           this.node.collapse();
         } else {
           this.node.expand();
+          this.$emit('node-expand', this.node.data, this.node, this);
         }
       },
 
-      handleUserClick() {
-        if (this.node.indeterminate) {
-          this.node.setChecked(this.node.checked, !this.tree.checkStrictly);
-        }
+      handleCheckChange(value, ev) {
+        this.node.setChecked(ev.target.checked, !this.tree.checkStrictly);
       },
 
-      handleCheckChange(ev) {
-        if (!this.node.indeterminate) {
-          this.node.setChecked(ev.target.checked, !this.tree.checkStrictly);
-        }
+      handleChildNodeExpand(nodeData, node, instance) {
+        this.broadcast('ElTreeNode', 'tree-node-expand', node);
+        this.tree.$emit('node-expand', nodeData, node, instance);
       }
     },
 
@@ -185,6 +193,14 @@
       if (this.node.expanded) {
         this.expanded = true;
         this.childNodeRendered = true;
+      }
+
+      if(this.tree.accordion) {
+        this.$on('tree-node-expand', node => {
+          if(this.node !== node) {
+            this.node.collapse();
+          }
+        });
       }
     }
   };
